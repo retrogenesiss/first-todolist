@@ -1,6 +1,15 @@
-import React, {ChangeEvent, KeyboardEvent, useState} from "react";
-import {FilterValuesType} from "./App";
+import React, {ChangeEvent} from "react";
+import {FilterValuesType} from "./PrevComponents/App";
 import './App.css';
+import {AddItemForm} from "./AddItemForm";
+import {EditableSpan} from "./EditableSpan";
+import IconButton from '@mui/material/IconButton';
+import Button from '@mui/material/Button';
+import DeleteIcon from '@mui/icons-material/Delete';
+import Checkbox from '@mui/material/Checkbox';
+import {useDispatch, useSelector} from "react-redux";
+import {AppRootState} from "./state/store";
+import {addTaskAC, changeStatusAC, changeTitleAC, removeTaskAC} from "./state/tasks-reduсer";
 
 export type TasksType = {
     id: string
@@ -9,94 +18,131 @@ export type TasksType = {
 }
 
 type PropsType = {
+    id: string
     title: string
-    tasks: Array<TasksType> //TaskType[]
-    removeTask: (taskId: string) => void
-    changeFilter: (value: FilterValuesType) => void
-    addTask: (title: string) => void
-    changeTaskStatus: (taskId: string, isDone: boolean) => void
+    changeFilter: (todolistId: string, value: FilterValuesType) => void
     filter: FilterValuesType
+    removeTodolist: (todolistId: string) => void
+    changeTodolistTitle: (todolistId: string, newTitle: string) => void
 }
 
 export function Todolist(props: PropsType) {
+    const dispatch = useDispatch()
+    const tasks = useSelector<AppRootState, Array<TasksType>>( state => state.tasks[props.id] )
 
-    let [title, setTitle] = useState("");
-    let [error, setError] = useState<string | null>(null);
+    const removeTodolist = () => props.removeTodolist(props.id)
+    const changeTodolistTitle = (newTitle: string) => props.changeTodolistTitle(props.id, newTitle)
 
-    const addTask = () => {
-        // if (props.title.trim() === ''){
-        //     return;
-        // }
-        // // функция обрыва
-        // props.addTask(props.title.trim());
-        // setTitle('');
-        if (title.trim() !== '') {
-            props.addTask(title.trim());
-            setTitle("");
-        } else {
-            setError('Field is required');
-        }
+    const onAllClickHandler = () => props.changeFilter(props.id, "all")
+    const onActiveClickHandler = () => props.changeFilter(props.id, "active")
+    const onCompletedClickHandler = () => props.changeFilter(props.id, "completed")
+
+    let tasksForTodolist = tasks;
+
+    if (props.filter === "completed") {
+        tasksForTodolist = tasksForTodolist.filter(t => t.isDone);
     }
-
-    const onChangeHandler = (e: ChangeEvent<HTMLInputElement>) => {
-        setTitle(e.currentTarget.value)  // currentTarget - это тот эл., с которым произошло событие
+    if (props.filter === "active") {
+        tasksForTodolist = tasksForTodolist.filter(t => !t.isDone);
     }
-    const onKeyPressHandler = (e: KeyboardEvent<HTMLInputElement>) => {
-        setError(null);
-        if (e.charCode === 13) {                 // если нужно нажать две клавиши, то
-            props.addTask(title);                // e.ctrlKey && e.charCode
-            setTitle('');
-        }
-    }
-
-    const onAllClickHandler = () => props.changeFilter("all")
-    const onActiveClickHandler = () => props.changeFilter("active")
-    const onCompletedClickHandler = () => props.changeFilter("completed")
 
     return (
         <div>
-            <h3>{props.title}</h3>
-            <div>
-                <input value={title}
-                       onChange={onChangeHandler}
-                       onKeyPress={onKeyPressHandler}
-                       className={error ? 'error' : ''}  // псевдоложь
+            <h3>
+                <EditableSpan
+                    title={props.title}
+                    onChange={changeTodolistTitle}
                 />
-                <button onClick={addTask}>+</button>
-                {error && <div className='error-message'>{error}</div>}
-            </div>
-            <ul>
-                {props.tasks.map(t => {
-                    const onRemoveHandler = () => {props.removeTask(t.id)}
-                    const onChangeHandler = (e: ChangeEvent<HTMLInputElement>) => {
-                        props.changeTaskStatus(t.id, e.currentTarget.checked);
+                <IconButton onClick={removeTodolist}>
+                    <DeleteIcon />
+                </IconButton>
+            </h3>
+            <AddItemForm addItem={(title) => dispatch(addTaskAC(title, props.id))}/>
+
+            <div>
+                {
+                    tasksForTodolist.map(t => {
+                    const onRemoveHandler = () => dispatch(removeTaskAC(t.id, props.id))
+                    const onChangeStatusHandler = (e: ChangeEvent<HTMLInputElement>) => {
+                        let newIdDoneValue = e.currentTarget.checked
+                        dispatch(changeStatusAC(t.id, newIdDoneValue, props.id))
+                    }
+                    const onChangeTitleHandler = (newValue: string) => {
+                        dispatch(changeTitleAC(t.id, newValue, props.id))
                     }
 
-                    return <li key={t.id} className={t.isDone ? 'is-done' : ''}>
-                        <input type="checkbox"
-                               checked={t.isDone}
-                               onChange={onChangeHandler}/>
-                        <span>{t.title}</span>
-                        <button onClick={onRemoveHandler}>x</button>
-                    </li>
-                })
-                    // props.tasks.map( t =>
-                    // <li>
-                    // <input type="checkbox" checked={t.isDone}/>
-                    // <span>{t.title}</span>
-                    // </li>
-                    //)
-                    //можно убрать фигурные скобки и return, если ф-ция ничего иного не делает
-                }
-            </ul>
+                    return <div key={t.id} className={t.isDone ? 'is-done' : ''}>
+                        <Checkbox checked={t.isDone}
+                                  onChange={onChangeStatusHandler}/>
+                        {/*<span>{t.title}</span>*/}
+                        <EditableSpan title={t.title}
+                                      onChange={onChangeTitleHandler}
+                        />
+                        <IconButton onClick={onRemoveHandler}>
+                            <DeleteIcon />
+                        </IconButton>
+                    </div>
+                })}
+            </div>
             <div>
-                <button className={props.filter === 'all' ? 'active-filter' : ''}
-                        onClick={onAllClickHandler}>All</button>
-                <button className={props.filter === 'active' ? 'active-filter' : ''}
-                        onClick={onActiveClickHandler}>Active</button>
-                <button className={props.filter === 'completed' ? 'active-filter' : ''}
-                        onClick={onCompletedClickHandler}>Completed</button>
+                <Button variant={props.filter === 'all' ? 'outlined' : 'text'}
+                        onClick={onAllClickHandler}>All
+                </Button>
+                <Button color={"primary"}
+                        variant={props.filter === 'active' ? 'contained' : 'text'}
+                        onClick={onActiveClickHandler}>Active
+                </Button>
+                <Button color={"secondary"}
+                        variant={props.filter === 'completed' ? 'contained' : 'text'}
+                        onClick={onCompletedClickHandler}>Completed
+                </Button>
             </div>
         </div>
     )
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+// let [title, setTitle] = useState("");
+// let [error, setError] = useState<string | null>(null);
+
+// const addTask = () => {
+//     // if (props.title.trim() === ''){
+//     //     return;
+//     // }
+//     // // функция обрыва
+//     // props.addTask(props.title.trim());
+//     // setTitle('');
+//     if (title.trim() !== '') {
+//         props.addTask(title.trim(), props.id);
+//         setTitle("");
+//     } else {
+//         setError('Title is required');
+//     }
+// }
+
+// const onChangeHandler = (e: ChangeEvent<HTMLInputElement>) => {
+//     setTitle(e.currentTarget.value)  // currentTarget - это тот эл., с которым произошло событие
+// }
+// const onKeyPressHandler = (e: KeyboardEvent<HTMLInputElement>) => {
+//     setError(null);
+//     if (e.charCode === 13) {                 // если нужно нажать две клавиши, то
+//         addTask()                            // e.ctrlKey && e.charCode
+//     }
+// }
+
+// <input value={title}
+//                        onChange={onChangeHandler}
+//                        onKeyPress={onKeyPressHandler}
+//                        className={error ? 'error' : ''}  // псевдоложь
+//                 />
+//                 <button onClick={addTask}>+</button>
+//                 {error && <div className='error-message'>{error}</div>}
+
+// props.tasks.map( t =>
+// <li>
+// <input type="checkbox" checked={t.isDone}/>
+// <span>{t.title}</span>
+// </li>
+//)
+//можно убрать фигурные скобки и return, если ф-ция ничего иного не делает
